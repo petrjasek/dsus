@@ -4,7 +4,9 @@
 import sys
 import getopt
 import signal
+import os.path
 import BaseHTTPServer
+from urlparse import urlparse
 
 SERVER_ADDRESS = 8000
 SERVER_VERSION = "DSUS/0.1"
@@ -20,6 +22,8 @@ STATE_SHUTDOWN = 2
 
 server_state = STATE_INIT
 
+SIGNED = ('.changes', '.commands')
+
 class DSUSHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 	"""
 	Handler for Debian Smart Upload Server Protocol.
@@ -27,18 +31,43 @@ class DSUSHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
 	server_version = SERVER_VERSION
 
-	def do_GET(self):
-		"""
-		Command handle.
-		"""
-		self.send_response(200, "OK")
-		self.end_headers()
-	
-	def du_PUT(self):
+	def do_PUT(self):
 		"""
 		File uploading handle.
 		"""
-		self.send_response(200, "OK")
+
+		url = urlparse(self.path)
+		path = os.path.normpath(url.path)
+		dirname = os.path.dirname(path)
+		filename = os.path.basename(path)
+
+		# remove first /
+		if os.path.isabs(dirname):
+			dirname = dirname[1:]
+
+		# filename check
+		if not len(filename):
+			self.send_error(400, 'No filename specified')
+			return
+
+		# directory check
+		if not os.path.isdir(dirname):
+			self.send_error(404, 'Directory not found')
+			return
+
+		# check sign of find file in .changes
+		if filename.endswith(SIGNED):
+			print "check sign"
+		else:
+			print "check if file is wanted"
+
+		# store file
+		content_length = int(self.headers['Content-Length'])
+		f = open(os.path.join(dirname, filename), "w")
+		f.write(self.rfile.read(content_length))
+		f.close()
+
+		self.send_response(200)
 
 def usage():
 	"""
