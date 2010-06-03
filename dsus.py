@@ -5,6 +5,9 @@ import sys
 import getopt
 import signal
 import os.path
+from glob import iglob
+import time
+import re
 import BaseHTTPServer
 from urlparse import urlparse
 
@@ -22,7 +25,11 @@ STATE_SHUTDOWN = 2
 
 server_state = STATE_INIT
 
-SIGNED = ('.changes', '.commands')
+CHANGES = '.changes'
+COMMANDS = '.commands'
+SIGNED = (CHANGES, COMMANDS)
+
+WINDOW = 3600 * 24 # secs we wait for files after .changes recieved
 
 class DSUSHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 	"""
@@ -31,6 +38,11 @@ class DSUSHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
 	server_version = SERVER_VERSION
 
+	dirname = ''
+	filename = ''
+	md5 = ''
+	length = 0
+
 	def do_PUT(self):
 		"""
 		File uploading handle.
@@ -38,36 +50,87 @@ class DSUSHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
 		url = urlparse(self.path)
 		path = os.path.normpath(url.path)
-		dirname = os.path.dirname(path)
-		filename = os.path.basename(path)
+		self.dirname = os.path.dirname(path)
+		self.filename = os.path.basename(path)
 
-		# remove first /
-		if os.path.isabs(dirname):
-			dirname = dirname[1:]
-
-		# filename check
-		if not len(filename):
-			self.send_error(400, 'No filename specified')
+		# check meta - name, size, etc.
+		if not self.check_meta():
 			return
 
-		# directory check
-		if not os.path.isdir(dirname):
-			self.send_error(404, 'Directory not found')
-			return
+		# TODO upload file
 
-		# check sign of find file in .changes
-		if filename.endswith(SIGNED):
-			print "check sign"
-		else:
-			print "check if file is wanted"
+		# check content - checksum, sign, etc.
+		if not self.check_content():
+			return
 
 		# store file
-		content_length = int(self.headers['Content-Length'])
+		self.send_response(200)
+		return
+
+		# store file
 		f = open(os.path.join(dirname, filename), "w")
 		f.write(self.rfile.read(content_length))
 		f.close()
 
-		self.send_response(200)
+	def check_meta(self):
+		"""
+		Check upload meta information.
+		"""
+		# check filename
+		if not len(self.filename):
+			self.send_error(400, 'No filename')
+			return False
+
+		# remove first / from dirname
+		if os.path.isabs(self.dirname):
+			self.dirname = self.dirname[1:]
+
+		# check dirname
+		if not os.path.isdir(self.dirname):
+			self.send_error(404, 'Bad directory')
+			# TODO allowed dirs check
+			return False
+
+		# check if file should be stored
+		if not self.filename.endswith(SIGNED):
+			if not self.get_checksum():
+				self.send_error(409, 'Conflict')
+				return False
+
+		# passed
+		return True
+
+	def check_content(self):
+		"""
+		Check file to be in .changes and having proper size.
+		"""
+		return False
+
+	def get_checksum(self):
+		"""
+		Get file information from .changes file.
+		"""
+		pattern = "([0-9a-f]{32}) ([0-9]+) .* %s" % self.filename
+		reg = re.compile(pattern)
+
+		for changes in iglob(os.path.join(self.dirname, '*' + CHANGES)):
+			if time.time() - os.path.getmtime(changes) > WINDOW:
+				continue
+
+			f = open(changes, "r")
+			for line in f:
+				line = line.strip()
+				if not line.endswith(self.filename):
+					continue
+
+				try:
+					m = reg.match(line)
+					self.md5 = m.group(1)
+					return True
+				except AttributeError:
+					continue
+
+		return False
 
 def usage():
 	"""
