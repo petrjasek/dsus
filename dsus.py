@@ -8,6 +8,9 @@ import os.path
 from glob import iglob
 import time
 import re
+import tempfile
+import hashlib
+import shutil
 import BaseHTTPServer
 from urlparse import urlparse
 
@@ -38,9 +41,9 @@ class DSUSHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
 	server_version = SERVER_VERSION
 
-	dirname = ''
-	filename = ''
-	md5 = ''
+	dirname = None
+	filename = None
+	md5 = None
 	length = 0
 
 	def do_PUT(self):
@@ -57,20 +60,18 @@ class DSUSHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 		if not self.check_meta():
 			return
 
-		# TODO upload file
+		# upload file
+		f = open(os.path.join(tempfile.mkdtemp(), self.filename), "w")
+		f.write(self.rfile.read(self.length))
+		f.close()
 
 		# check content - checksum, sign, etc.
-		if not self.check_content():
+		if not self.check_content(f.name):
 			return
 
-		# store file
+		# move to proper place
+		shutil.move(f.name, os.path.join(self.dirname, self.filename))
 		self.send_response(200)
-		return
-
-		# store file
-		f = open(os.path.join(dirname, filename), "w")
-		f.write(self.rfile.read(content_length))
-		f.close()
 
 	def check_meta(self):
 		"""
@@ -87,28 +88,45 @@ class DSUSHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
 		# check dirname
 		if not os.path.isdir(self.dirname):
-			self.send_error(404, 'Bad directory')
+			self.send_error(400, 'Bad directory')
 			# TODO allowed dirs check
+			return False
+
+		# existing file?
+		if os.path.exists(os.path.join(self.dirname, self.filename)):
+			self.send_error(400, 'File uploaded allready')
 			return False
 
 		# check if file should be stored
 		if not self.filename.endswith(SIGNED):
 			if not self.get_checksum():
-				self.send_error(409, 'Conflict')
+				self.send_error(409, 'File not expected')
 				return False
 
-		# passed
 		return True
 
-	def check_content(self):
+	def check_content(self, filename):
 		"""
 		Check file to be in .changes and having proper size.
 		"""
-		return False
+		if self.filename.endswith(SIGNED):
+			# TODO verify sign
+			print 'TODO verify sign'
+
+		else:
+			f = open(filename, "r")
+			md5 = hashlib.md5()
+			md5.update(f.read(self.length))
+			f.close()
+			if md5.hexdigest() != self.md5:
+				self.send_error(409, 'Checksum error');
+				return False
+
+		return True
 
 	def get_checksum(self):
 		"""
-		Get file information from .changes file.
+		Get self.file checksum from .changes file.
 		"""
 		pattern = "([0-9a-f]{32}) ([0-9]+) .* %s" % self.filename
 		reg = re.compile(pattern)
@@ -126,6 +144,7 @@ class DSUSHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 				try:
 					m = reg.match(line)
 					self.md5 = m.group(1)
+					self.length = int(m.group(2))
 					return True
 				except AttributeError:
 					continue
@@ -136,26 +155,22 @@ def usage():
 	"""
 	Print usage message.
 	"""
-
 	print "usage: dsus.py [-p|--port=SERVER_PORT] [-h|--help]"
 
 def load_config():
 	"""
 	Loads config.
 	"""
-
 	print "Config load call."
 
 def handle_signal(signum, frame):
 	"""
 	Change server state with signals.
 	"""
-
 	if signum == signal.SIGUSR1:
 		global server_state
 		server_state = STATE_SHUTDOWN
 		print "Server shutting down."
-
 	elif signum == signal.SIGHUP:
 		load_config()
 		print "Config reloaded."
@@ -165,7 +180,6 @@ def run(server_class=BaseHTTPServer.HTTPServer,
 	"""
 	Server routine.
 	"""
-
 	server_address = ("", options["port"])
 	httpd = server_class(server_address, handler_class)
 
