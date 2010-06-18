@@ -31,18 +31,24 @@ from BaseHTTPServer import HTTPServer
 from daklib.config import Config
 from dsus_handler import DSUSHandler
 
-class DSUServer:
+class DSUServer(HTTPServer):
 	"""
 	Debian Smart Upload Server class
 	"""
+
+	VERSION = "DSUS/0.1"
 
 	STATE_INIT = 0
 	STATE_ACTIVE = 1
 	STATE_SHUTDOWN = 2
 	STATE_RECONFIG = 3
 
-	state = STATE_INIT
-	server = None
+	def __init__(self):
+		self.cnf = Config()
+		self.address = ('', int(self.cnf["DSUS::port"]))
+		HTTPServer.__init__(self, self.address, DSUSHandler)
+		state = self.STATE_INIT
+
 
 	def run(self):
 		"""
@@ -53,14 +59,9 @@ class DSUServer:
 		signal.signal(signal.SIGHUP, self.handle_signal)
 
 		# Run server
-		while self.state != self.STATE_SHUTDOWN:
-			cnf = Config()
-			self.address = ('', int(cnf["DSUS::port"]))
-			self.server = HTTPServer(self.address, DSUSHandler)
-
-			self.state = self.STATE_ACTIVE
-			while self.state == self.STATE_ACTIVE:
-				self.server.handle_request()
+		self.state = self.STATE_ACTIVE
+		while self.state == self.STATE_ACTIVE:
+			self.handle_request()
 
 
 	def handle_signal(self, signum, frame):

@@ -24,15 +24,12 @@
 
 import re
 import os.path
-import BaseHTTPServer
-
+from BaseHTTPServer import BaseHTTPRequestHandler
 from glob import iglob
 from urlparse import urlparse
 from tempfile import mkdtemp
 from shutil import move
 from time import time
-
-SERVER_VERSION = "DSUS/0.1"
 
 CHANGES = '.changes'
 COMMANDS = '.commands'
@@ -40,12 +37,10 @@ SIGNED = (CHANGES, COMMANDS)
 
 WINDOW = 3600 * 24 # secs we wait for files after .changes recieved
 
-class DSUSHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+class DSUSHandler(BaseHTTPRequestHandler):
 	"""
 	Handler for Debian Smart Upload Server Protocol.
 	"""
-
-	server_version = SERVER_VERSION
 
 	dir = None
 	file = None
@@ -56,6 +51,8 @@ class DSUSHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 		"""
 		File uploading handle.
 		"""
+
+		server_version = self.server.VERSION
 
 		url = urlparse(self.path)
 		path = os.path.normpath(url.path)
@@ -78,6 +75,7 @@ class DSUSHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 		# store file
 		move(f.name, os.path.join(self.dir, self.file))
 		self.send_response(200)
+
 
 	def check_meta(self):
 		"""
@@ -111,6 +109,7 @@ class DSUSHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
 		return True
 
+
 	def check_content(self, filename):
 		"""
 		Check file content.
@@ -128,6 +127,7 @@ class DSUSHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 				return False
 
 		return True
+
 
 	def get_checksum(self):
 		"""
