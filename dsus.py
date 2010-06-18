@@ -26,69 +26,68 @@ import sys
 import getopt
 import signal
 import hashlib
-import BaseHTTPServer
+from BaseHTTPServer import HTTPServer
 
+from daklib.config import Config
 from dsus_handler import DSUSHandler
 
-config = {
-	"port": 8000,
-	"dest": "./",
-	}
+class DSUServer:
+	"""
+	Debian Smart Upload Server class
+	"""
 
-STATE_INIT = 0
-STATE_ACTIVE = 1
-STATE_SHUTDOWN = 2
+	STATE_INIT = 0
+	STATE_ACTIVE = 1
+	STATE_SHUTDOWN = 2
+	STATE_RECONFIG = 3
 
-server_state = STATE_INIT
+	state = STATE_INIT
+	server = None
+
+	def run(self):
+		"""
+		Server routine.
+		"""
+		# Set signals handles
+		signal.signal(signal.SIGUSR1, self.handle_signal)
+		signal.signal(signal.SIGHUP, self.handle_signal)
+
+		# Run server
+		while self.state != self.STATE_SHUTDOWN:
+			cnf = Config()
+			self.address = ('', int(cnf["DSUS::port"]))
+			self.server = HTTPServer(self.address, DSUSHandler)
+
+			self.state = self.STATE_ACTIVE
+			while self.state == self.STATE_ACTIVE:
+				self.server.handle_request()
+
+
+	def handle_signal(self, signum, frame):
+		"""
+		Change state with signals.
+		"""
+		print "Signal handle"
+		if signum == signal.SIGUSR1:
+			self.state = self.STATE_SHUTDOWN
+			print "Server shutting down."
+		elif signum == signal.SIGHUP:
+			self.state = self.STATE_RECONFIG
+			print "Config reloaded."
+
 
 def usage():
 	"""
 	Print usage message.
 	"""
-	print "usage: dsus.py [-p|--port=SERVER_PORT] [-h|--help]"
-
-def load_config():
-	"""
-	Loads config.
-	"""
-	print "Config load call."
-
-def handle_signal(signum, frame):
-	"""
-	Change server state with signals.
-	"""
-	if signum == signal.SIGUSR1:
-		global server_state
-		server_state = STATE_SHUTDOWN
-		print "Server shutting down."
-	elif signum == signal.SIGHUP:
-		load_config()
-		print "Config reloaded."
-
-def run(server_class=BaseHTTPServer.HTTPServer,
-		handler_class=BaseHTTPServer.BaseHTTPRequestHandler):
-	"""
-	Server routine.
-	"""
-	server_address = ("", config["port"])
-	httpd = server_class(server_address, handler_class)
-
-	# Set signals handles.
-	global server_state
-	server_state = STATE_ACTIVE
-	signal.signal(signal.SIGUSR1, handle_signal)
-	signal.signal(signal.SIGHUP, handle_signal)
-
-	while server_state == STATE_ACTIVE:
-		httpd.handle_request()
+	print "usage: dsus.py [-h|--help]"
 
 def main(argv):
 	"""
 	Handles arguments and runs server.
 	"""
-
 	try:
-		opts, args = getopt.getopt(argv, "hp:", ["help", "port="])
+		opts, args = getopt.getopt(argv, "h", ["help"])
 	except getopt.GetoptError:
 		usage()
 		sys.exit(2)
@@ -98,10 +97,9 @@ def main(argv):
 		if opt in ("-h", "--help"):
 			usage()
 			sys.exit()
-		elif opt in ("-p", "--port"):
-			config["port"] = int(arg)
 
-	run(handler_class=DSUSHandler)
+	server = DSUServer()
+	server.run()
 
 if __name__ == "__main__":
 	main(sys.argv[1:])
