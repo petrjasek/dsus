@@ -44,7 +44,7 @@ class DSUServer(HTTPServer):
 		self.cnf = Config()
 		self.address = ('', int(self.cnf["DSUS::port"]))
 		HTTPServer.__init__(self, self.address, DSUSHandler)
-		state = self.STATE_INIT
+		self.state = self.STATE_INIT
 
 
 	def run(self):
@@ -56,23 +56,24 @@ class DSUServer(HTTPServer):
 		signal.signal(signal.SIGHUP, self.handle_signal)
 
 		# Run server
-		self.state = self.STATE_ACTIVE
-		while self.state == self.STATE_ACTIVE:
-			self.cnf = Config()
-			self.handle_request()
+		while self.state != self.STATE_SHUTDOWN:
+			self.state = self.STATE_ACTIVE
+			while self.state == self.STATE_ACTIVE:
+				self.handle_request()
 
 
 	def handle_signal(self, signum, frame):
 		"""
 		Change state with signals.
 		"""
-		print "Signal handle"
 		if signum == signal.SIGUSR1:
 			self.state = self.STATE_SHUTDOWN
-			print "Server shutting down."
+			print "Server shutting down"
 		elif signum == signal.SIGHUP:
 			self.state = self.STATE_RECONFIG
-			print "Config reloaded."
+			self.cnf.initialised = False
+			self.cnf = Config()
+			print "Server reconfigured"
 
 
 def usage():
