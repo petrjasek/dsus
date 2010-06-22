@@ -24,6 +24,7 @@
 
 import re
 import os.path
+import hashlib
 from BaseHTTPServer import BaseHTTPRequestHandler
 from glob import iglob
 from urlparse import urlparse
@@ -31,8 +32,7 @@ from tempfile import mkdtemp
 from shutil import move
 from time import time
 
-CHANGES = '.changes'
-COMMANDS = '.commands'
+CHANGES, COMMANDS = '.changes', '.commands'
 SIGNED = (CHANGES, COMMANDS)
 
 WINDOW = 3600 * 24 # secs we wait for files after .changes recieved
@@ -52,12 +52,13 @@ class DSUSHandler(BaseHTTPRequestHandler):
 		File uploading handle.
 		"""
 
-		server_version = self.server.VERSION
+		server_version = "DSUS/0.1" 
 
 		url = urlparse(self.path)
 		path = os.path.normpath(url.path)
 		self.dir = os.path.dirname(path)
 		self.file = os.path.basename(path)
+		self.length = int(self.headers["Content-Length"])
 
 		# check meta - name, size, etc.
 		if not self.check_meta():
@@ -86,19 +87,12 @@ class DSUSHandler(BaseHTTPRequestHandler):
 			self.send_error(400, 'No filename')
 			return False
 
-		# filter abs dir
+		# check directory
 		if os.path.isabs(self.dir):
 			self.dir = self.dir[1:]
-
-		# check dirname
+		self.dir = os.path.join(self.server.cnf["DSUS::Path"], self.dir)
 		if not os.path.isdir(self.dir):
 			self.send_error(400, 'Bad directory')
-			# TODO allowed dirs check
-			return False
-
-		# existing file?
-		if os.path.exists(os.path.join(self.dir, self.file)):
-			self.send_error(400, 'File uploaded allready')
 			return False
 
 		# check if file should be stored
@@ -116,12 +110,12 @@ class DSUSHandler(BaseHTTPRequestHandler):
 		"""
 		if self.file.endswith(SIGNED):
 			# TODO verify sign
-			print 'TODO verify sign'
+			pass
 		else:
-			f = open(filename, "r")
+			content = open(filename, "r")
 			md5 = hashlib.md5()
-			md5.update(f.read(self.length))
-			f.close()
+			md5.update(content.read(self.length))
+			content.close()
 			if md5.hexdigest() != self.md5:
 				self.send_error(409, 'Checksum error');
 				return False
@@ -140,16 +134,17 @@ class DSUSHandler(BaseHTTPRequestHandler):
 			if time() - os.path.getmtime(changes) > WINDOW:
 				continue
 
-			f = open(changes, "r")
-			for line in f:
+			file = open(changes, "r")
+			for line in file:
 				line = line.strip()
 				if not line.endswith(self.file):
 					continue
 
 				try:
-					m = reg.match(line)
-					self.md5 = m.group(1)
-					self.length = int(m.group(2))
+					match = reg.match(line)
+					if self.length != int(match.group(2)):
+						continue
+					self.md5 = match.group(1)
 					return True
 				except AttributeError:
 					continue
