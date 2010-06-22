@@ -25,7 +25,6 @@
 import sys
 import getopt
 import signal
-import hashlib
 from BaseHTTPServer import HTTPServer
 
 from daklib.config import Config
@@ -35,8 +34,6 @@ class DSUServer(HTTPServer):
 	"""
 	Debian Smart Upload Server class
 	"""
-
-	VERSION = "DSUS/0.1"
 
 	STATE_INIT = 0
 	STATE_ACTIVE = 1
@@ -61,6 +58,7 @@ class DSUServer(HTTPServer):
 		# Run server
 		self.state = self.STATE_ACTIVE
 		while self.state == self.STATE_ACTIVE:
+			self.cnf = Config()
 			self.handle_request()
 
 
