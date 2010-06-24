@@ -31,76 +31,71 @@ from daklib.config import Config
 from dsus_handler import DSUSHandler
 
 class DSUServer(HTTPServer):
-	"""
-	Debian Smart Upload Server class
-	"""
+    """
+    Debian Smart Upload Server class
+    """
 
-	STATE_INIT = 0
-	STATE_ACTIVE = 1
-	STATE_SHUTDOWN = 2
-	STATE_RECONFIG = 3
+    STATE_INIT = 0
+    STATE_ACTIVE = 1
+    STATE_SHUTDOWN = 2
+    STATE_RECONFIG = 3
 
-	def __init__(self):
-		self.cnf = Config()
-		self.address = ('', int(self.cnf["DSUS::port"]))
-		HTTPServer.__init__(self, self.address, DSUSHandler)
-		self.state = self.STATE_INIT
+    def __init__(self):
+        self.cnf = Config()
+        self.address = ('', int(self.cnf["DSUS::port"]))
+        HTTPServer.__init__(self, self.address, DSUSHandler)
+        self.state = self.STATE_INIT
 
+    def run(self):
+        """
+        Server routine.
+        """
+        signal.signal(signal.SIGUSR1, self.handle_signal)
+        signal.signal(signal.SIGHUP, self.handle_signal)
 
-	def run(self):
-		"""
-		Server routine.
-		"""
-		# Set signals handles
-		signal.signal(signal.SIGUSR1, self.handle_signal)
-		signal.signal(signal.SIGHUP, self.handle_signal)
+        while self.state != self.STATE_SHUTDOWN:
+            self.state = self.STATE_ACTIVE
+            while self.state == self.STATE_ACTIVE:
+                self.handle_request()
 
-		# Run server
-		while self.state != self.STATE_SHUTDOWN:
-			self.state = self.STATE_ACTIVE
-			while self.state == self.STATE_ACTIVE:
-				self.handle_request()
-
-
-	def handle_signal(self, signum, frame):
-		"""
-		Change state with signals.
-		"""
-		if signum == signal.SIGUSR1:
-			self.state = self.STATE_SHUTDOWN
-			print "Server shutting down"
-		elif signum == signal.SIGHUP:
-			self.state = self.STATE_RECONFIG
-			self.cnf.initialised = False
-			self.cnf = Config()
-			print "Server reconfigured"
+    def handle_signal(self, signum, frame):
+        """
+        Change state with signals.
+        """
+        if signum == signal.SIGUSR1:
+            self.state = self.STATE_SHUTDOWN
+            print "Server shutting down"
+        elif signum == signal.SIGHUP:
+            self.state = self.STATE_RECONFIG
+            self.cnf.initialised = False
+            self.cnf = Config()
+            print "Server reconfigured"
 
 
 def usage():
-	"""
-	Print usage message.
-	"""
-	print "usage: dsus.py [-h|--help]"
+    """ Print usage message. """
+    print "usage: dsus.py [-h|--help]"
+
 
 def main(argv):
-	"""
-	Handles arguments and runs server.
-	"""
-	try:
-		opts, args = getopt.getopt(argv, "h", ["help"])
-	except getopt.GetoptError:
-		usage()
-		sys.exit(2)
+    """ Handles arguments and runs server. """
+    try:
+        opts, args = getopt.getopt(argv, "h", ["help"])
+    except getopt.GetoptError:
+        usage()
+        sys.exit(2)
 
-	# parse options
+    # parse options
 	for opt, arg in opts:
-		if opt in ("-h", "--help"):
-			usage()
-			sys.exit()
+        if opt in ("-h", "--help"):
+            usage()
+            sys.exit()
 
-	server = DSUServer()
-	server.run()
+    # start server
+    server = DSUServer()
+    server.run()
+
 
 if __name__ == "__main__":
-	main(sys.argv[1:])
+    main(sys.argv[1:])
 
