@@ -86,7 +86,7 @@ def main(argv):
         sys.exit(2)
 
     # parse options
-	for opt, arg in opts:
+    for opt, arg in opts:
         if opt in ("-h", "--help"):
             usage()
             sys.exit()
