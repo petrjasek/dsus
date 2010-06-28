@@ -47,17 +47,18 @@ class DSUSHandler(BaseHTTPRequestHandler):
 
     def do_PUT(self):
         """ File uploading handle. """
-
+        # parse url
         url = urlparse.urlparse(self.path)
         path = os.path.normpath(url.path)
         params = cgi.parse_qs(url.query)
         dirname = os.path.dirname(path)
         filename = os.path.basename(path)
 
+        # changes params required
         try:
             changes = params["changes"]
         except KeyError:
-            self.send_error(400, "Changes file not specified")
+            self.send_error(400, "Changes param not specified")
             return
 
         action = ["upload"] # default
@@ -108,7 +109,7 @@ class DSUSHandler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers["Content-Length"])
         except KeyError:
-            self.send_error(400, "Content-Length header missing")
+            self.send_error(411) # Length Required
             return
         if not filename:
             self.send_error(400, "Filename not specified")
@@ -117,7 +118,7 @@ class DSUSHandler(BaseHTTPRequestHandler):
             dirname = dirname[1:]
         destination = os.path.join(self.server.cnf["DSUS::Path"], dirname)
         if not os.path.isdir(destination):
-            self.send_error(400, "Directory not found")
+            self.send_error(404) # Not found
             return
         if not filename.endswith(SIGNED):
             # TODO load changes and look for filename
