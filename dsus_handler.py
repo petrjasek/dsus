@@ -33,6 +33,9 @@ from tempfile import mkdtemp
 from shutil import move
 from time import time
 
+from daklib.binary import Binary
+from daklib.queue import Upload
+
 CHANGES, COMMANDS = '.changes', '.commands'
 SIGNED = (CHANGES, COMMANDS)
 
@@ -133,7 +136,14 @@ class DSUSHandler(BaseHTTPRequestHandler):
         if filename.endswith(SIGNED):
             # TODO check sign, version etc.
             pass
+        elif filename.endswith(".deb"):
+            # binary check
+            binary = Binary(tmp_file.name, self.log_error)
+            if not binary.valid_deb():
+                self.send_error(400, "Not valid")
+                return
         else:
+
             # TODO check file content (litian etc.)
             pass
 
