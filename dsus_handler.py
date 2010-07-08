@@ -23,7 +23,6 @@
 ################################################################################
 
 import re
-import cgi
 import os.path
 import hashlib
 import urlparse
@@ -53,7 +52,7 @@ class DSUSHandler(BaseHTTPRequestHandler):
         # parse url
         url = urlparse.urlparse(self.path)
         path = os.path.normpath(url.path)
-        params = cgi.parse_qs(url.query)
+        params = urlparse.parse_qs(url.query)
         dirname = os.path.dirname(path)
         filename = os.path.basename(path)
 
