@@ -142,13 +142,19 @@ class DSUSHandler(BaseHTTPRequestHandler):
                 self.send_error(400, "Not valid")
                 return
         else:
-
             # TODO check file content (litian etc.)
             pass
 
         # store file
         move(tmp_file.name, os.path.join(destination, filename))
         self.send_response(200)
+
+    def log_message(self, format, *args):
+        """ Logs message. """
+        log = open(self.server.cnf["DSUS::LogFile"], 'a')
+        log.write(format % args)
+        log.write("\n")
+        log.close()
 
     def check_content(self, filename):
         """ Check file content. """
@@ -174,7 +180,7 @@ class DSUSHandler(BaseHTTPRequestHandler):
         reg = re.compile(pattern)
 
         for changes in iglob(os.path.join(self.dir, '*' + CHANGES)):
-            if time() - os.path.getmtime(changes) > WINDOW:
+            if time() - os.path.getmtime(changes) > int(self.server.cnf["DSUS::UploadWindow"]):
                 continue
             file = open(changes, "r")
             for line in file:
