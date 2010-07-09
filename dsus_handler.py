@@ -24,11 +24,11 @@
 
 import re
 import os.path
+from os import tmpfile
 import hashlib
 import urlparse
 from BaseHTTPServer import BaseHTTPRequestHandler
 from glob import iglob
-from tempfile import mkdtemp
 from shutil import move
 from time import time
 
@@ -49,6 +49,10 @@ SESSION_EXPIRED = 436
 LENGTH_EMPTY = 437
 LENGTH_CONFLICT = 438
 FILE_UNEXPECTED = 439
+
+# errors post-upload
+CHECKSUM_CONFLICT = 451
+BINARY_ERROR = 452
 
 # important extensions
 CHANGES, COMMANDS = '.changes', '.commands'
@@ -72,9 +76,14 @@ class DSUSHandler(BaseHTTPRequestHandler):
         435: ('Changes not found', 'Changes file not found'),
         436: ('Session expired', 'Upload session expired'),
         437: ('Length empty', 'Content-Length header not specified'),
-        438: ('Length conflict', 'Content-Length header not match'),
+        438: ('Length conflict', 'Length header not match .changes'),
         439: ('File unexpected', 'Send .changes file first'),
+
+        451: ('Checksum error', 'Checksum not match .changes'),
+        452: ('Binary error', 'Binary error'),
     }
+
+    error_message_format = "%(code)d: %(message)s (%(explain)s)\n"
 
     def do_PUT(self):
         """ File uploading handle. """
@@ -186,25 +195,38 @@ class DSUSHandler(BaseHTTPRequestHandler):
                 return
 
         # upload file
-        tmp_file = open(os.path.join(mkdtemp(), filename), "w")
+        tmp_file = tmpfile()
         tmp_file.write(self.rfile.read(length))
-        tmp_file.close()
+        tmp_file.flush()
 
         # content checks
         if filename.endswith(SIGNED):
             # TODO signed file content checks
             pass
         else:
+            if checksum != self.get_md5(tmp_file, length):
+                self.send_error(CHECKSUM_CONFLICT)
+                return
+
             binary = Binary(tmp_file.name, self.log_error)
             if not binary.valid_deb():
-                self.send_error(400, "Not valid")
+                self.send_error(BINARY_ERROR)
                 return
-            # TODO other checks (lintian etc.)
-            pass
+            # TODO more checks (lintian, etc.)
 
         # store file
-        move(tmp_file.name, os.path.join(dest, filename))
+        tmp_file.seek(0)
+        out_file = open(os.path.join(dest, filename), 'w')
+        out_file.write(tmp_file.read(length))
+        out_file.close()
         self.send_response(OK)
+
+    def get_md5(self, file, length):
+        """ Counts MD5 checksum for given file. """
+        file.seek(0)
+        md5 = hashlib.md5()
+        md5.update(file.read(length))
+        return md5.hexdigest()
 
     def log_message(self, format, *args):
         """ Logs message. """
@@ -212,22 +234,4 @@ class DSUSHandler(BaseHTTPRequestHandler):
         log.write(format % args)
         log.write("\n")
         log.close()
-
-    ##########
-
-    def check_content(self, filename):
-        """ Check file content. """
-        if self.file.endswith(SIGNED):
-            # TODO verify sign
-            pass
-        else:
-            content = open(filename, 'r')
-            md5 = hashlib.md5()
-            md5.update(content.read(self.length))
-            content.close()
-            if md5.hexdigest() != self.md5:
-                self.send_error(409, 'Checksum error');
-                return False
-
-        return True
 
