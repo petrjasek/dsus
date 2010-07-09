@@ -46,6 +46,9 @@ FILENAME_EMPTY = 433
 DESTINATION_ERROR = 434
 CHANGES_NOT_FOUND = 435
 SESSION_EXPIRED = 436
+LENGTH_EMPTY = 437
+LENGTH_CONFLICT = 438
+FILE_UNEXPECTED = 439
 
 # important extensions
 CHANGES, COMMANDS = '.changes', '.commands'
@@ -68,6 +71,9 @@ class DSUSHandler(BaseHTTPRequestHandler):
         434: ('Destination error', 'Destination directory not found'),
         435: ('Changes not found', 'Changes file not found'),
         436: ('Session expired', 'Upload session expired'),
+        437: ('Length empty', 'Content-Length header not specified'),
+        438: ('Length conflict', 'Content-Length header not match'),
+        439: ('File unexpected', 'Send .changes file first'),
     }
 
     def do_PUT(self):
@@ -163,6 +169,22 @@ class DSUSHandler(BaseHTTPRequestHandler):
                 self.send_error(SESSION_EXPIRED)
                 return
 
+            checksum = None
+            pattern = "([0-9a-f]{32}) ([0-9]+) .* %s" % filename
+            reg = re.compile(pattern)
+            changes_handle = open(changes, 'r')
+            for line in changes_handle:
+                match = reg.match(line)
+                if match:
+                    if length != int(match.group(2)):
+                        self.send_error(LENGTH_CONFLICT)
+                        return
+                    checksum = match.group(1)
+                    break
+            if not checksum:
+                self.send_error(FILE_UNEXPECTED)
+                return
+
         # upload file
         tmp_file = open(os.path.join(mkdtemp(), filename), "w")
         tmp_file.write(self.rfile.read(length))
@@ -209,11 +231,3 @@ class DSUSHandler(BaseHTTPRequestHandler):
 
         return True
 
-    def get_checksum(self):
-        """ Get checksum for file from .changes. """
-        pattern = "([0-9a-f]{32}) ([0-9]+) .* %s" % self.file
-        reg = re.compile(pattern)
-
-        match = reg.match(line)
-        self.md5 = match.group(1)
-        return True
