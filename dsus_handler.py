@@ -24,13 +24,12 @@
 
 import re
 import os.path
-from os import tmpfile
 import hashlib
 import urlparse
 from BaseHTTPServer import BaseHTTPRequestHandler
-from glob import iglob
 from shutil import move
 from time import time
+from tempfile import NamedTemporaryFile
 
 from daklib.binary import Binary
 from daklib.queue import Upload
@@ -195,7 +194,7 @@ class DSUSHandler(BaseHTTPRequestHandler):
                 return
 
         # upload file
-        tmp_file = tmpfile()
+        tmp_file = NamedTemporaryFile(suffix='.' + filename.split('.')[-1])
         tmp_file.write(self.rfile.read(length))
         tmp_file.flush()
 
