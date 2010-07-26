@@ -172,6 +172,11 @@ class DSUSHandler(BaseHTTPRequestHandler):
                 self.send_error(CHANGES_NOT_FOUND)
                 return
 
+            upload = Upload()
+            if not upload.load_changes(changes):
+                print upload.rejects
+                return
+
             window = int(self.server.cnf["DSUS::UploadWindow"])
             if time() - os.path.getmtime(changes) > window:
                 self.send_error(SESSION_EXPIRED)
