@@ -28,30 +28,13 @@ import hashlib
 import urlparse
 from BaseHTTPServer import BaseHTTPRequestHandler
 from shutil import move
-from time import time
+import time
 from tempfile import NamedTemporaryFile
 
 from daklib.binary import Binary
 from daklib.queue import Upload
 
-# status codes
-# successfull
-OK = 200
-
-# errors pre-upload
-CHANGES_EMPTY = 431
-ACTION_UNKNOWN = 432
-FILENAME_EMPTY = 433
-DESTINATION_ERROR = 434
-CHANGES_NOT_FOUND = 435
-SESSION_EXPIRED = 436
-LENGTH_EMPTY = 437
-LENGTH_CONFLICT = 438
-FILE_UNEXPECTED = 439
-
-# errors post-upload
-CHECKSUM_CONFLICT = 451
-BINARY_ERROR = 452
+from codes import *
 
 # important extensions
 CHANGES, COMMANDS = '.changes', '.commands'
@@ -64,23 +47,8 @@ class DSUSHandler(BaseHTTPRequestHandler):
 
     server_version = "DSUS/0.1"
 
-    # mapping codes to messages
-    responses = {
-        200: ('OK', 'OK'),
-
-        431: ('Empty changes', 'Changes param not specified'),
-        432: ('Unknown action', 'Unknown action'),
-        433: ('Empty filename', 'Filename not specified'),
-        434: ('Destination error', 'Destination directory not found'),
-        435: ('Changes not found', 'Changes file not found'),
-        436: ('Session expired', 'Upload session expired'),
-        437: ('Length empty', 'Content-Length header not specified'),
-        438: ('Length conflict', 'Length header not match .changes'),
-        439: ('File unexpected', 'Send .changes file first'),
-
-        451: ('Checksum error', 'Checksum not match .changes'),
-        452: ('Binary error', 'Binary error'),
-    }
+    # set response codes
+    responses = responses
 
     error_message_format = "%(code)d: %(message)s (%(explain)s)\n"
 
@@ -88,43 +56,39 @@ class DSUSHandler(BaseHTTPRequestHandler):
         """ File uploading handle. """
         # parse url
         url = urlparse.urlparse(self.path)
-        path = os.path.normpath(url.path)
         params = urlparse.parse_qs(url.query)
-        dirname = os.path.dirname(path)
-        filename = os.path.basename(path)
+        
+        # extract path
+        self.path = os.path.normpath(url.path)
+        self.dirname = os.path.dirname(self.path)
+        self.filename = os.path.basename(self.path)
 
-        if not params.has_key("changes"):
-            # changes params required
+        # get changes
+        try:
+            self.changes = params["changes"].pop()
+        except KeyError:
             self.send_error(CHANGES_EMPTY)
             return
-        else:
-            changes = params["changes"].pop()
 
+        # get action
+        action = "upload" # default
         if params.has_key("action"):
-            action = params["action"]
-        else:
-            action = ["upload"] # default
+            action = params["action"].pop()
 
-        if "done" in action:
-            self.handle_done(changes, dirname)
-        elif "upload" in action:
-            self.handle_upload(changes, dirname, filename)
+        if action == "done":
+            self.action_done()
+        elif action == "upload":
+            self.action_upload()
         else:
             self.send_error(ACTION_UNKNOWN)
 
-    def handle_done(self, changes, dirname):
+    def action_done(self):
         """
         Finishes upload session.
-
-        @type changes: string
-        @param changes: .changes file with everything uploaded
-
-        @type dirname: string
-        @param dirname: dirname containing changes file
         """
         pass
 
-    def handle_upload(self, changes, dirname, filename):
+    def action_upload(self):
         """
         Handles file upload.
 
@@ -135,18 +99,9 @@ class DSUSHandler(BaseHTTPRequestHandler):
         various checks will be performed - verify sign for *.changes etc.
         If these are ok too file is moved into specified destination.
         On error it returns code and some meaningfull message to client.
-
-        @type changes: string
-        @param changes: .changes file
-
-        @type dirname: string
-        @param dirname: destination path
-
-        @type filename: string
-        @param filename: target filename
         """
         # common pre-upload checks
-        if not filename:
+        if not self.filename:
             self.send_error(FILENAME_EMPTY)
             return
 
@@ -154,20 +109,20 @@ class DSUSHandler(BaseHTTPRequestHandler):
             self.send_error(LENGTH_EMPTY)
             return
         else:
-            length = int(self.headers["Content-Length"])
+            self.length = int(self.headers["Content-Length"])
 
-        if os.path.isabs(dirname):
-            dirname = dirname[1:]
-        dest = os.path.join(self.server.cnf["DSUS::Path"], dirname)
+        if os.path.isabs(self.dirname):
+            self.dirname = self.dirname[1:]
+        dest = os.path.join(self.server.cnf["DSUS::Path"], self.dirname)
         if not os.path.isdir(dest):
             self.send_error(DESTINATION_NOT_FOUND)
             return
 
-        if filename.endswith(SIGNED):
+        if self.filename.endswith(SIGNED):
             # TODO signed file checks
             pass
         else:
-            changes = os.path.join(dest, changes)
+            changes = os.path.join(dest, self.changes)
             if not os.path.isfile(changes):
                 self.send_error(CHANGES_NOT_FOUND)
                 return
@@ -178,12 +133,12 @@ class DSUSHandler(BaseHTTPRequestHandler):
                 return
 
             window = int(self.server.cnf["DSUS::UploadWindow"])
-            if time() - os.path.getmtime(changes) > window:
+            if time.time() - os.path.getmtime(changes) > window:
                 self.send_error(SESSION_EXPIRED)
                 return
 
             checksum = None
-            pattern = "([0-9a-f]{32}) ([0-9]+) .* %s" % filename
+            pattern = "([0-9a-f]{32}) ([0-9]+) .* %s" % self.filename
             reg = re.compile(pattern)
             changes_handle = open(changes, 'r')
             for line in changes_handle:
@@ -199,16 +154,16 @@ class DSUSHandler(BaseHTTPRequestHandler):
                 return
 
         # upload file
-        tmp_file = NamedTemporaryFile(suffix='.' + filename.split('.')[-1])
-        tmp_file.write(self.rfile.read(length))
+        tmp_file = NamedTemporaryFile(suffix='.' + self.filename.split('.')[-1])
+        tmp_file.write(self.rfile.read(self.length))
         tmp_file.flush()
 
         # content checks
-        if filename.endswith(SIGNED):
+        if self.filename.endswith(SIGNED):
             # TODO signed file content checks
             pass
         else:
-            if checksum != self.get_md5(tmp_file, length):
+            if checksum != self.get_md5(tmp_file, self.length):
                 self.send_error(CHECKSUM_CONFLICT)
                 return
 
@@ -220,8 +175,8 @@ class DSUSHandler(BaseHTTPRequestHandler):
 
         # store file
         tmp_file.seek(0)
-        out_file = open(os.path.join(dest, filename), 'w')
-        out_file.write(tmp_file.read(length))
+        out_file = open(os.path.join(dest, self.filename), 'w')
+        out_file.write(tmp_file.read(self.length))
         out_file.close()
         self.send_response(OK)
 
@@ -235,7 +190,7 @@ class DSUSHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         """ Logs message. """
         log = open(self.server.cnf["DSUS::LogFile"], 'a')
+        log.write(time.strftime('[%d/%b/%Y:%H:%M:%S %Z] '))
         log.write(format % args)
         log.write("\n")
         log.close()
-
