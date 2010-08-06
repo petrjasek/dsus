@@ -46,6 +46,17 @@ class DSUSHandler(BaseHTTPRequestHandler):
 
     error_message_format = "%(code)d: %(message)s (%(explain)s)\n"
 
+    checks = {
+        'changes': {
+            'meta': ['check_filename', 'check_headers', 'check_dirname'],
+            'content': [],
+            },
+        'default': {
+            'meta': ['check_filename', 'check_headers', 'check_dirname', 'check_changes'],
+            'content': [],
+            }
+        }
+
     def do_PUT(self):
         """ File uploading handle. """
         # parse url
@@ -98,38 +109,45 @@ class DSUSHandler(BaseHTTPRequestHandler):
         If these are ok too file is moved into specified destination.
         On error it returns code and some meaningfull message to client.
         """
+        # get type by extension
+        self.type = self.filename.split('.').pop()
+        if not self.checks.has_key(self.type):
+            self.type = "default"
 
-        checks = ['check_filename', 'check_headers', 'check_dirname',
-                'check_changes']
+        if self.trigger_checks('meta'):
+            return
 
-        # meta checks
-        for check in checks:
+        # upload file
+        self.temporary = NamedTemporaryFile(suffix='.' + self.type)
+        self.temporary.write(self.rfile.read(self.length))
+        self.temporary.flush()
+
+        if self.trigger_checks('content'):
+            # gc
+            return
+
+        # store file
+        self.temporary.seek(0)
+        dest = open(os.path.join(self.dest, self.filename), 'w')
+        dest.write(self.temporary.read(self.length))
+        dest.close()
+        self.send_response(OK)
+
+    def trigger_checks(self, category):
+        """ Triggers checks for given filetype and category """
+        print 'trigger', category, 'for', self.type
+        for check in self.checks[self.type][category]:
             try:
                 globals()[check](self)
             except CheckError as e:
                 print check, 'raised error', e.code
                 self.send_error(e.code)
-                return
+                return e.code
             except KeyError:
                 print check, 'not found'
             else:
                 print check, 'passed'
-
-        print self.upload.pkg.files
-
-        # upload file
-        tmp_file = NamedTemporaryFile(suffix='.' + self.filename.split('.')[-1])
-        tmp_file.write(self.rfile.read(self.length))
-        tmp_file.flush()
-
-        # content checks
-
-        # store file
-        tmp_file.seek(0)
-        out_file = open(os.path.join(self.dest, self.filename), 'w')
-        out_file.write(tmp_file.read(self.length))
-        out_file.close()
-        self.send_response(OK)
+        return
 
     def log_message(self, format, *args):
         """ Logs message. """
