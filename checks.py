@@ -30,7 +30,7 @@ from time import time
 from codes import *
 from daklib.binary import Binary
 from daklib.queue import Upload
-
+from daklib.utils import check_hash
 
 class CheckError(Exception):
     """ Check error exception """
@@ -72,6 +72,21 @@ def check_changes(handle):
     if not handle.upload.load_changes(changes):
         print handle.upload.rejects
         raise CheckError(CHANGES_BAD_FORMAT)
+    if not handle.upload.pkg.files.has_key(handle.filename):
+        raise CheckError(FILE_UNEXPECTED)
+    else:
+        handle.md5sum = handle.upload.pkg.files[handle.filename]['md5sum']
+    return True
+
+def check_checksum(handle):
+    """ Checksum check """
+    if not handle.md5sum:
+        raise CheckError(FILE_UNEXPECTED)
+    md5 = hashlib.md5()
+    handle.temporary.seek(0)
+    md5.update(handle.temporary.read(handle.length))
+    if md5.hexdigest() != handle.md5sum:
+        raise CheckError(CHECKSUM_ERROR)
     return True
 
 def check_time(handle):
@@ -79,12 +94,6 @@ def check_time(handle):
     window = int(handle.cnf["DSUS::UploadWindow"])
     if time() - os.path.getmtime(handle.changes) > window:
         raise CheckError(SESSION_EXPIRED)
-    return True
-
-def check_checksum(handle):
-    """ Checksum check """
-    if not checksum:
-        raise CheckError(FILE_UNEXPECTED)
     return True
 
 def check_valid_deb(handle):

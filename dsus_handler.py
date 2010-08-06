@@ -48,12 +48,16 @@ class DSUSHandler(BaseHTTPRequestHandler):
 
     checks = {
         'changes': {
-            'meta': ['check_filename', 'check_headers', 'check_dirname'],
-            'content': [],
+            'meta': ['filename', 'headers', 'dirname'],
+            'content': ['signature'],
+            },
+        'deb': {
+            'meta': ['filename', 'headers', 'dirname', 'changes', 'time'],
+            'content': ['checksum', 'valid_deb'],
             },
         'default': {
-            'meta': ['check_filename', 'check_headers', 'check_dirname', 'check_changes'],
-            'content': [],
+            'meta': ['filename', 'headers', 'dirname', 'changes', 'time'],
+            'content': ['checksum'],
             }
         }
 
@@ -137,6 +141,7 @@ class DSUSHandler(BaseHTTPRequestHandler):
         """ Triggers checks for given filetype and category """
         print 'trigger', category, 'for', self.type
         for check in self.checks[self.type][category]:
+            check = 'check_' + check
             try:
                 globals()[check](self)
             except CheckError as e:
