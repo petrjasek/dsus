@@ -22,19 +22,14 @@
 
 ################################################################################
 
-import re
 import os.path
-import hashlib
 import urlparse
-from BaseHTTPServer import BaseHTTPRequestHandler
-from shutil import move
-import time
+from time import strftime
 from tempfile import NamedTemporaryFile
-
-from daklib.binary import Binary
-from daklib.queue import Upload
+from BaseHTTPServer import BaseHTTPRequestHandler
 
 from codes import *
+from checks import *
 
 # important extensions
 CHANGES, COMMANDS = '.changes', '.commands'
@@ -47,8 +42,7 @@ class DSUSHandler(BaseHTTPRequestHandler):
 
     server_version = "DSUS/0.1"
 
-    # set response codes
-    responses = responses
+    responses = responses # map codes.response to handle.responses
 
     error_message_format = "%(code)d: %(message)s (%(explain)s)\n"
 
@@ -62,6 +56,9 @@ class DSUSHandler(BaseHTTPRequestHandler):
         self.path = os.path.normpath(url.path)
         self.dirname = os.path.dirname(self.path)
         self.filename = os.path.basename(self.path)
+
+        # set config
+        self.cnf = self.server.cnf
 
         # get changes
         try:
@@ -100,58 +97,22 @@ class DSUSHandler(BaseHTTPRequestHandler):
         If these are ok too file is moved into specified destination.
         On error it returns code and some meaningfull message to client.
         """
-        # common pre-upload checks
-        if not self.filename:
-            self.send_error(FILENAME_EMPTY)
-            return
 
-        if not self.headers.has_key("Content-Length"):
-            self.send_error(LENGTH_EMPTY)
-            return
-        else:
-            self.length = int(self.headers["Content-Length"])
+        checks = ['check_filename', 'check_headers', 'check_dirname',
+                'check_changes', 'abcd']
 
-        if os.path.isabs(self.dirname):
-            self.dirname = self.dirname[1:]
-        dest = os.path.join(self.server.cnf["DSUS::Path"], self.dirname)
-        if not os.path.isdir(dest):
-            self.send_error(DESTINATION_NOT_FOUND)
-            return
-
-        if self.filename.endswith(SIGNED):
-            # TODO signed file checks
-            pass
-        else:
-            changes = os.path.join(dest, self.changes)
-            if not os.path.isfile(changes):
-                self.send_error(CHANGES_NOT_FOUND)
+        # meta checks
+        for check in checks:
+            try:
+                globals()[check](self)
+            except CheckError as e:
+                print check, 'raised error', e.code
+                self.send_error(e.code)
                 return
+            else:
+                print check, 'passed'
 
-            upload = Upload()
-            if not upload.load_changes(changes):
-                print upload.rejects
-                return
-
-            window = int(self.server.cnf["DSUS::UploadWindow"])
-            if time.time() - os.path.getmtime(changes) > window:
-                self.send_error(SESSION_EXPIRED)
-                return
-
-            checksum = None
-            pattern = "([0-9a-f]{32}) ([0-9]+) .* %s" % self.filename
-            reg = re.compile(pattern)
-            changes_handle = open(changes, 'r')
-            for line in changes_handle:
-                match = reg.match(line)
-                if match:
-                    if length != int(match.group(2)):
-                        self.send_error(LENGTH_CONFLICT)
-                        return
-                    checksum = match.group(1)
-                    break
-            if not checksum:
-                self.send_error(FILE_UNEXPECTED)
-                return
+        print self.upload.pkg.files
 
         # upload file
         tmp_file = NamedTemporaryFile(suffix='.' + self.filename.split('.')[-1])
@@ -159,38 +120,18 @@ class DSUSHandler(BaseHTTPRequestHandler):
         tmp_file.flush()
 
         # content checks
-        if self.filename.endswith(SIGNED):
-            # TODO signed file content checks
-            pass
-        else:
-            if checksum != self.get_md5(tmp_file, self.length):
-                self.send_error(CHECKSUM_CONFLICT)
-                return
-
-            binary = Binary(tmp_file.name, self.log_error)
-            if not binary.valid_deb():
-                self.send_error(BINARY_ERROR)
-                return
-            # TODO more checks (lintian, etc.)
 
         # store file
         tmp_file.seek(0)
-        out_file = open(os.path.join(dest, self.filename), 'w')
+        out_file = open(os.path.join(self.dest, self.filename), 'w')
         out_file.write(tmp_file.read(self.length))
         out_file.close()
         self.send_response(OK)
 
-    def get_md5(self, file, length):
-        """ Counts MD5 checksum for given file. """
-        file.seek(0)
-        md5 = hashlib.md5()
-        md5.update(file.read(length))
-        return md5.hexdigest()
-
     def log_message(self, format, *args):
         """ Logs message. """
-        log = open(self.server.cnf["DSUS::LogFile"], 'a')
-        log.write(time.strftime('[%d/%b/%Y:%H:%M:%S %Z] '))
+        log = open(self.cnf["DSUS::LogFile"], 'a')
+        log.write(strftime('[%d/%b/%Y:%H:%M:%S %Z] '))
         log.write(format % args)
         log.write("\n")
         log.close()
