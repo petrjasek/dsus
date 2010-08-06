@@ -68,9 +68,10 @@ class DSUSHandler(BaseHTTPRequestHandler):
             return
 
         # get action
-        action = "upload" # default
         if params.has_key("action"):
             action = params["action"].pop()
+        else:
+            action = "upload" # default
 
         if action == "done":
             self.action_done()
@@ -99,7 +100,7 @@ class DSUSHandler(BaseHTTPRequestHandler):
         """
 
         checks = ['check_filename', 'check_headers', 'check_dirname',
-                'check_changes', 'abcd']
+                'check_changes']
 
         # meta checks
         for check in checks:
@@ -109,6 +110,8 @@ class DSUSHandler(BaseHTTPRequestHandler):
                 print check, 'raised error', e.code
                 self.send_error(e.code)
                 return
+            except KeyError:
+                print check, 'not found'
             else:
                 print check, 'passed'
 
