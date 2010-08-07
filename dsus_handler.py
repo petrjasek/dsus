@@ -29,7 +29,7 @@ from time import strftime
 from tempfile import mkdtemp
 from BaseHTTPServer import BaseHTTPRequestHandler
 
-from codes import *
+from codes import ACTION_UNKNOWN, responses
 from checks import *
 
 class DSUSHandler(BaseHTTPRequestHandler):
@@ -72,12 +72,11 @@ class DSUSHandler(BaseHTTPRequestHandler):
         # set config for checks
         self.cnf = self.server.cnf
 
-        # get changes
+        # store changes
         try:
             self.changes = params["changes"].pop()
         except KeyError:
-            self.send_error(CHANGES_EMPTY)
-            return
+            self.changes = None
 
         # get action
         try:

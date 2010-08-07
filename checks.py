@@ -66,13 +66,18 @@ def check_dirname(handle):
 
 def check_changes(handle):
     """ Changes file must exists """
+    if not handle.changes:
+        raise CheckError(CHANGES_EMPTY)
+
     handle.changes = os.path.join(handle.dest, handle.changes)
     if not os.path.isfile(handle.changes):
         raise CheckError(CHANGES_NOT_FOUND)
+
     handle.upload = Upload()
     if not handle.upload.load_changes(handle.changes):
         print handle.upload.rejects
         raise CheckError(CHANGES_BAD_FORMAT)
+
     if not handle.upload.pkg.files.has_key(handle.filename):
         raise CheckError(FILE_UNEXPECTED)
     else:
