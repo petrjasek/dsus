@@ -31,6 +31,7 @@ from codes import *
 import daklib.utils
 from daklib.binary import Binary
 from daklib.queue import Upload
+from daklib.lintian import parse_lintian_output
 
 class CheckError(Exception):
     """ Check error exception """
@@ -78,6 +79,13 @@ def check_changes(handle):
         handle.md5sum = handle.upload.pkg.files[handle.filename]['md5sum']
     return True
 
+def check_size(handle):
+    """ Size check """
+    size = int(handle.upload.pkg.files[handle.filename]['size'])
+    if size != handle.length:
+        raise CheckError(LENGTH_ERROR)
+    return True
+
 def check_time(handle):
     """ Check if upload is within time window """
     window  = int(handle.cnf['DSUS::timeWindow'])
@@ -102,6 +110,10 @@ def check_valid_deb(handle):
     binary = Binary(handle.tempfile.name, handle.log_error)
     if not binary.valid_deb():
         raise CheckError(BINARY_ERROR)
+    return True
+
+def check_lintian(handle):
+    """ Check lintian """
     return True
 
 def check_signature(handle):

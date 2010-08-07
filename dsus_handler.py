@@ -49,11 +49,11 @@ class DSUSHandler(BaseHTTPRequestHandler):
             'content': ['signature'],
             },
         'deb': {
-            'meta': ['filename', 'headers', 'dirname', 'changes', 'time'],
-            'content': ['checksum', 'valid_deb'],
+            'meta': ['filename', 'headers', 'dirname', 'changes', 'time', 'size'],
+            'content': ['checksum', 'valid_deb', 'lintian'],
             },
         'default': {
-            'meta': ['filename', 'headers', 'dirname', 'changes', 'time'],
+            'meta': ['filename', 'headers', 'dirname', 'changes', 'time', 'size'],
             'content': ['checksum'],
             }
         }
