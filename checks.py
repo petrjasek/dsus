@@ -65,11 +65,11 @@ def check_dirname(handle):
 
 def check_changes(handle):
     """ Changes file must exists """
-    changes = os.path.join(handle.dest, handle.changes)
-    if not os.path.isfile(changes):
+    handle.changes = os.path.join(handle.dest, handle.changes)
+    if not os.path.isfile(handle.changes):
         raise CheckError(CHANGES_NOT_FOUND)
     handle.upload = Upload()
-    if not handle.upload.load_changes(changes):
+    if not handle.upload.load_changes(handle.changes):
         print handle.upload.rejects
         raise CheckError(CHANGES_BAD_FORMAT)
     if not handle.upload.pkg.files.has_key(handle.filename):
@@ -83,22 +83,23 @@ def check_checksum(handle):
     if not handle.md5sum:
         raise CheckError(FILE_UNEXPECTED)
     md5 = hashlib.md5()
-    handle.temporary.seek(0)
-    md5.update(handle.temporary.read(handle.length))
+    content = open(handle.tempfile.name, 'r')
+    md5.update(content.read(handle.length))
+    content.close()
     if md5.hexdigest() != handle.md5sum:
         raise CheckError(CHECKSUM_ERROR)
     return True
 
 def check_time(handle):
     """ Check if upload is within time window """
-    window = int(handle.cnf["DSUS::UploadWindow"])
+    window  = int(handle.cnf['DSUS::timeWindow'])
     if time() - os.path.getmtime(handle.changes) > window:
         raise CheckError(SESSION_EXPIRED)
     return True
 
 def check_valid_deb(handle):
     """ Check Binary.valid_deb """
-    binary = Binary(handle.temporary.name, handle.log_error)
+    binary = Binary(handle.tempfile.name, handle.log_error)
     if not binary.valid_deb():
         raise CheckError(BINARY_ERROR)
     return True

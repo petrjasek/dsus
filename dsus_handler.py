@@ -24,16 +24,13 @@
 
 import os.path
 import urlparse
+import shutil
 from time import strftime
-from tempfile import NamedTemporaryFile
+from tempfile import mkdtemp
 from BaseHTTPServer import BaseHTTPRequestHandler
 
 from codes import *
 from checks import *
-
-# important extensions
-CHANGES, COMMANDS = '.changes', '.commands'
-SIGNED = (CHANGES, COMMANDS)
 
 class DSUSHandler(BaseHTTPRequestHandler):
     """
@@ -72,7 +69,7 @@ class DSUSHandler(BaseHTTPRequestHandler):
         self.dirname = os.path.dirname(self.path)
         self.filename = os.path.basename(self.path)
 
-        # set config
+        # set config for checks
         self.cnf = self.server.cnf
 
         # get changes
@@ -83,9 +80,9 @@ class DSUSHandler(BaseHTTPRequestHandler):
             return
 
         # get action
-        if params.has_key("action"):
+        try:
             action = params["action"].pop()
-        else:
+        except KeyError:
             action = "upload" # default
 
         if action == "done":
@@ -122,19 +119,18 @@ class DSUSHandler(BaseHTTPRequestHandler):
             return
 
         # upload file
-        self.temporary = NamedTemporaryFile(suffix='.' + self.type)
-        self.temporary.write(self.rfile.read(self.length))
-        self.temporary.flush()
+        tempdir = mkdtemp()
+        self.tempfile = open(os.path.join(tempdir, self.filename), 'w')
+        self.tempfile.write(self.rfile.read(self.length))
+        self.tempfile.close()
 
         if self.trigger_checks('content'):
-            # gc
+            shutil.rmtree(tempdir)
             return
 
         # store file
-        self.temporary.seek(0)
-        dest = open(os.path.join(self.dest, self.filename), 'w')
-        dest.write(self.temporary.read(self.length))
-        dest.close()
+        shutil.move(self.tempfile.name, os.path.join(self.dest, self.filename))
+        shutil.rmtree(tempdir)
         self.send_response(OK)
 
     def trigger_checks(self, category):
