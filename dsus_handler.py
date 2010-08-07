@@ -29,7 +29,7 @@ from time import strftime
 from tempfile import mkdtemp
 from BaseHTTPServer import BaseHTTPRequestHandler
 
-from codes import ACTION_UNKNOWN, responses
+from codes import OK, ACTION_UNKNOWN, responses
 from checks import *
 
 class DSUSHandler(BaseHTTPRequestHandler):
@@ -114,6 +114,7 @@ class DSUSHandler(BaseHTTPRequestHandler):
         if not self.checks.has_key(self.type):
             self.type = "default"
 
+        # pre-upload trigger
         if self.trigger_checks('meta'):
             return
 
@@ -123,6 +124,7 @@ class DSUSHandler(BaseHTTPRequestHandler):
         self.tempfile.write(self.rfile.read(self.length))
         self.tempfile.close()
 
+        # post-upload trigger
         if self.trigger_checks('content'):
             shutil.rmtree(tempdir)
             return
