@@ -135,19 +135,19 @@ class DSUSHandler(BaseHTTPRequestHandler):
 
     def trigger_checks(self, category):
         """ Triggers checks for given filetype and category """
-        print 'trigger', category, 'for', self.type
+        print 'trigger', category, 'for', self.filename
         for check in self.checks[self.type][category]:
             check = 'check_' + check
             try:
                 globals()[check](self)
             except CheckError as e:
-                print check, 'raised error', e.code
+                print self.filename, check, 'raised error', e.code
                 self.send_error(e.code)
                 return e.code
             except KeyError:
                 print check, 'not found'
             else:
-                print check, 'passed'
+                print self.filename, check, 'passed'
         return
 
     def log_message(self, format, *args):

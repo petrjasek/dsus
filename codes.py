@@ -39,6 +39,7 @@ FILE_UNEXPECTED = 439
 # errors post-upload
 CHECKSUM_ERROR = 451
 BINARY_ERROR = 452
+SIGNATURE_ERROR = 453
 
 responses = {
         200: ('OK', 'OK'),
@@ -55,4 +56,5 @@ responses = {
 
         451: ('Checksum error', 'Checksum not match .changes'),
         452: ('Binary error', 'Binary error'),
+        453: ('Signature error', 'Key not found in the keyring')
     }
