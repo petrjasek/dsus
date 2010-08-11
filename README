@@ -1,1 +1,33 @@
 Debian Smart Upload Server
+==========================
+
+This project aims to replace FTP with HTTP when uploading
+packages to Debian. Significant thing is that it checks them
+and instantly respondes when it finds some errors.
+
+Requirements
+============
+
+It needs daklib linked to the folder, which you can get via:
+
+git clone http://ftp-master.debian.org/git/dak.git
+
+Config
+======
+
+Configuration is supposed to be in:
+
+/etc/dak/dak.conf
+
+See dak.conf.sample for more info.
+
+Issues, bugs, etc.
+==================
+You can write these at:
+
+http://github.com/pjx/dsus/issues
+
+You can also follow development and so.
+
+--
+Petr Jašek <jasekpetr@gmail.com>
