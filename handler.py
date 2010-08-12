@@ -37,25 +37,8 @@ class DSUSHandler(BaseHTTPRequestHandler):
     """
 
     server_version = "DSUS/0.1"
-
     responses = responses # map checks.responses to handle.responses
-
     error_message_format = "%(code)d: %(message)s (%(explain)s)\n"
-
-    checks = {
-        'changes': {
-            'meta': ['filename', 'headers', 'dirname'],
-            'content': ['signature'],
-            },
-        'deb': {
-            'meta': ['filename', 'headers', 'dirname', 'changes', 'time', 'size'],
-            'content': ['checksum', 'valid_deb', 'lintian'],
-            },
-        'default': {
-            'meta': ['filename', 'headers', 'dirname', 'changes', 'time', 'size'],
-            'content': ['checksum'],
-            }
-        }
 
     def do_PUT(self):
         """ File uploading handle. """
@@ -137,7 +120,9 @@ class DSUSHandler(BaseHTTPRequestHandler):
     def trigger_checks(self, category):
         """ Triggers checks for given filetype and category """
         print 'trigger', category, 'for', self.filename
-        for check in self.checks[self.type][category]:
+        cnfkey = "::".join(["DSUS", "Checks", self.type, category])
+        checks = self.cnf.ValueList(cnfkey)
+        for check in checks:
             check = 'check_' + check
             try:
                 globals()[check](self)

@@ -1,0 +1,52 @@
+// dak config...
+
+DSUS
+{
+    port 8000; // port to listen
+    path "/var/dsus"; // destination for uploaded files
+    logFile "/var/log/dsus.log"; // log file
+    timeWindow 86400; // 24 hours for uploading files
+
+    Checks { // checks to be performed by file extension
+        changes {
+            meta {
+                filename;
+                headers;
+                dirname;
+            }
+            content {
+                signature;
+            }
+        }
+        
+        deb {
+            meta {
+            	filename;
+            	headers;
+            	dirname;
+            	changes;
+            	time;
+            	size;
+            }
+            content {
+            	checksum;
+            	valid_deb;
+            	lintian;
+            }
+        }
+        
+        default {
+            meta {
+            	filename;
+            	headers;
+            	dirname;
+            	changes;
+            	time;
+            	size;
+            }
+            content {
+            	checksum;
+            }
+        }
+    }
+}
