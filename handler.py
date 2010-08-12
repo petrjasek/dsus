@@ -84,12 +84,13 @@ class DSUSHandler(BaseHTTPRequestHandler):
         except KeyError:
             action = "upload" # default
 
-        if action == "done":
-            self.action_done()
-        elif action == "upload":
-            self.action_upload()
-        else:
+        # action call
+        try:
+            action_method = getattr(self, "action_" + action)
+        except AttributeError:
             self.send_error(ACTION_UNKNOWN)
+        else:
+            action_method()
 
     def action_done(self):
         """
