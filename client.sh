@@ -20,8 +20,13 @@
 
 ################################################################################
 
-CHANGES="$2"
-SERVER="$1"
+SERVER="$2"
+CHANGES="$1"
+
+if [ "$#" != "2" ]; then
+    echo "Usage: client.sh <changes_filename> <server_address:port>"
+    exit
+fi
 
 echo "uploading changes..."
 curl -X PUT -T "$CHANGES" "$SERVER/$CHANGES?canges=$CHANGES" | grep "4[0-9]\{2\}"
