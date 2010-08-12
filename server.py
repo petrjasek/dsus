@@ -28,7 +28,7 @@ import signal
 from BaseHTTPServer import HTTPServer
 
 from daklib.config import Config
-from dsus_handler import DSUSHandler
+from handler import DSUSHandler
 
 class DSUServer(HTTPServer):
     """
