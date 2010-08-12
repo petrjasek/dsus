@@ -29,7 +29,6 @@ from time import strftime
 from tempfile import mkdtemp
 from BaseHTTPServer import BaseHTTPRequestHandler
 
-from codes import OK, ACTION_UNKNOWN, responses
 from checks import *
 
 class DSUSHandler(BaseHTTPRequestHandler):
@@ -39,7 +38,7 @@ class DSUSHandler(BaseHTTPRequestHandler):
 
     server_version = "DSUS/0.1"
 
-    responses = responses # map codes.response to handle.responses
+    responses = responses # map checks.responses to handle.responses
 
     error_message_format = "%(code)d: %(message)s (%(explain)s)\n"
 
