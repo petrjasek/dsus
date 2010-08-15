@@ -21,6 +21,18 @@ Configuration is supposed to be in:
 
 See dak.conf.sample for more info.
 
+Checks
+======
+
+Checks are separated into two groups in config file,
+meta checks - which does not need file content, and
+content checks - which does need the file content.
+
+So file must past meta checks - like filename, path,
+record in changes file etc. Than it's uploaded to temp
+dir, and file must past content checks. If it does,
+it is moved into specified destination.
+
 Issues, bugs, etc.
 ==================
 You can write these at:
