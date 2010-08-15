@@ -49,6 +49,8 @@ CHECKSUM_ERROR = 451
 BINARY_ERROR = 452
 SIGNATURE_ERROR = 453
 
+FILES_ERROR = 471
+
 responses = {
     200: ('OK', 'OK'),
     
@@ -65,6 +67,8 @@ responses = {
     451: ('Checksum error', 'Checksum not match .changes'),
     452: ('Binary error', 'Binary error'),
     453: ('Signature error', 'Key not found in the keyring'),
+
+    471: ('Files error', 'Upload check_hashes error')
 }
 
 class CheckError(Exception):
@@ -111,6 +115,9 @@ def check_changes(handle):
     if not handle.upload.load_changes(handle.changes):
         print handle.upload.rejects
         raise CheckError(CHANGES_BAD_FORMAT)
+
+    if handle.type == 'done':
+        return True
 
     if not handle.upload.pkg.files.has_key(handle.filename):
         raise CheckError(FILE_UNEXPECTED)
@@ -162,3 +169,11 @@ def check_signature(handle):
         #print rejects.pop()
         raise CheckError(SIGNATURE_ERROR)
     return True
+
+def check_files(handle):
+    """ Check all uploaded files """
+    if handle.upload.rejects:
+        raise CheckError(FILES_ERROR)
+    return True
+
+

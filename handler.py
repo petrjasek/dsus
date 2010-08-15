@@ -77,8 +77,18 @@ class DSUSHandler(BaseHTTPRequestHandler):
     def action_done(self):
         """
         Finishes upload session.
+
+        Perform some checks from daklib and then it should run
+        dqueue to process the files.
         """
-        pass
+        self.type = 'done'
+        if self.trigger_checks('meta'):
+            return
+
+        # TODO need database connection
+        # self.upload.accept("Upload done", "Upload done")
+
+        self.send_response(OK)
 
     def action_upload(self):
         """

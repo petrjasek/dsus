@@ -25,6 +25,7 @@ DSUS
             	headers;
             	dirname;
             	changes;
+                version;
             	time;
             	size;
             }
@@ -41,11 +42,20 @@ DSUS
             	headers;
             	dirname;
             	changes;
+                version;
             	time;
             	size;
             }
             content {
             	checksum;
+            }
+        }
+
+        done { // checks for finished upload
+            meta {
+                changes;
+                version;
+                files;
             }
         }
     }
